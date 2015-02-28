@@ -46,6 +46,8 @@ THE SOFTWARE.
 #include "I2Cdev.h"
 
 #include "MPU6050_6Axis_MotionApps20.h"
+
+#include <PID_v1.h>
 //#include "MPU6050.h" // not necessary if using MotionApps include file
 
 // Arduino Wire library is required if I2Cdev I2CDEV_ARDUINO_WIRE implementation
@@ -60,6 +62,15 @@ THE SOFTWARE.
 // AD0 high = 0x69
 MPU6050 mpu;
 //MPU6050 mpu(0x69); // <-- use for AD0 high
+
+//Define Variables we'll be connecting to
+double angleSetpoint=0, inputAngle, outputPWM;
+float Kp=0, Ki=0, Kd=0;
+byte pwmMax=255, pwmMin=-255;
+int M1A=3,M1B=5, M2A=6, M2B=7; 
+
+//Specify the links and initial tuning parameters
+PID balanceBotPID(&inputAngle, &outputPWM, &angleSetpoint,Kp,Ki,Kd, DIRECT);
 
 /* =========================================================================
    NOTE: In addition to connection 3.3v, GND, SDA, and SCL, this sketch
@@ -81,41 +92,6 @@ MPU6050 mpu;
 
 
 
-// uncomment "OUTPUT_READABLE_QUATERNION" if you want to see the actual
-// quaternion components in a [w, x, y, z] format (not best for parsing
-// on a remote host such as Processing or something though)
-//#define OUTPUT_READABLE_QUATERNION
-
-// uncomment "OUTPUT_READABLE_EULER" if you want to see Euler angles
-// (in degrees) calculated from the quaternions coming from the FIFO.
-// Note that Euler angles suffer from gimbal lock (for more info, see
-// http://en.wikipedia.org/wiki/Gimbal_lock)
-//#define OUTPUT_READABLE_EULER
-
-// uncomment "OUTPUT_READABLE_YAWPITCHROLL" if you want to see the yaw/
-// pitch/roll angles (in degrees) calculated from the quaternions coming
-// from the FIFO. Note this also requires gravity vector calculations.
-// Also note that yaw/pitch/roll angles suffer from gimbal lock (for
-// more info, see: http://en.wikipedia.org/wiki/Gimbal_lock)
-#define OUTPUT_READABLE_YAWPITCHROLL
-
-// uncomment "OUTPUT_READABLE_REALACCEL" if you want to see acceleration
-// components with gravity removed. This acceleration reference frame is
-// not compensated for orientation, so +X is always +X according to the
-// sensor, just without the effects of gravity. If you want acceleration
-// compensated for orientation, us OUTPUT_READABLE_WORLDACCEL instead.
-//#define OUTPUT_READABLE_REALACCEL
-
-// uncomment "OUTPUT_READABLE_WORLDACCEL" if you want to see acceleration
-// components with gravity removed and adjusted for the world frame of
-// reference (yaw is relative to initial orientation, since no magnetometer
-// is present in this case). Could be quite handy in some cases.
-//#define OUTPUT_READABLE_WORLDACCEL
-
-// uncomment "OUTPUT_TEAPOT" if you want output that matches the
-// format used for the InvenSense teapot demo
-//#define OUTPUT_TEAPOT
-
 
 
 #define LED_PIN 13 // (Arduino is 13, Teensy is 11, Teensy++ is 6)
@@ -131,15 +107,12 @@ uint8_t fifoBuffer[64]; // FIFO storage buffer
 
 // orientation/motion vars
 Quaternion q;           // [w, x, y, z]         quaternion container
-VectorInt16 aa;         // [x, y, z]            accel sensor measurements
-VectorInt16 aaReal;     // [x, y, z]            gravity-free accel sensor measurements
-VectorInt16 aaWorld;    // [x, y, z]            world-frame accel sensor measurements
 VectorFloat gravity;    // [x, y, z]            gravity vector
 float euler[3];         // [psi, theta, phi]    Euler angle container
 float ypr[3];           // [yaw, pitch, roll]   yaw/pitch/roll container and gravity vector
 
-// packet structure for InvenSense teapot demo
-uint8_t teapotPacket[14] = { '$', 0x02, 0,0, 0,0, 0,0, 0,0, 0x00, 0x00, '\r', '\n' };
+
+
 
 
 
@@ -189,9 +162,9 @@ void setup() {
 
     // wait for ready
     Serial.println(F("\nSend any character to begin DMP programming and demo: "));
-    while (Serial.available() && Serial.read()); // empty buffer
+    /*while (Serial.available() && Serial.read()); // empty buffer
     while (!Serial.available());                 // wait for data
-    while (Serial.available() && Serial.read()); // empty buffer again
+    while (Serial.available() && Serial.read()); // empty buffer again*/
 
     // load and configure the DMP
     Serial.println(F("Initializing DMP..."));
@@ -232,6 +205,8 @@ void setup() {
 
     // configure LED for output
     pinMode(LED_PIN, OUTPUT);
+    balanceBotPID.SetOutputLimits(pwmMax,pwmMin);
+    balanceBotPID.SetMode(AUTOMATIC);
 }
 
 
@@ -283,90 +258,78 @@ void loop() {
         // (this lets us immediately read more without waiting for an interrupt)
         fifoCount -= packetSize;
 
-        #ifdef OUTPUT_READABLE_QUATERNION
-            // display quaternion values in easy matrix form: w x y z
-            mpu.dmpGetQuaternion(&q, fifoBuffer);
-            Serial.print("quat\t");
-            Serial.print(q.w);
-            Serial.print("\t");
-            Serial.print(q.x);
-            Serial.print("\t");
-            Serial.print(q.y);
-            Serial.print("\t");
-            Serial.println(q.z);
-        #endif
 
-        #ifdef OUTPUT_READABLE_EULER
-            // display Euler angles in degrees
-            mpu.dmpGetQuaternion(&q, fifoBuffer);
-            mpu.dmpGetEuler(euler, &q);
-            Serial.print("euler\t");
-            Serial.print(euler[0] * 180/M_PI);
-            Serial.print("\t");
-            Serial.print(euler[1] * 180/M_PI);
-            Serial.print("\t");
-            Serial.println(euler[2] * 180/M_PI);
-        #endif
 
-        #ifdef OUTPUT_READABLE_YAWPITCHROLL
+        
+
+        
             // display Euler angles in degrees
             mpu.dmpGetQuaternion(&q, fifoBuffer);
             mpu.dmpGetGravity(&gravity, &q);
             mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
-            Serial.print("ypr\t");
+            /*Serial.print("ypr\t");
             Serial.print(ypr[0] * 180/M_PI);
             Serial.print("\t");
             Serial.print(ypr[1] * 180/M_PI);
             Serial.print("\t");
-            Serial.println(ypr[2] * 180/M_PI);
-        #endif
+            Serial.println(ypr[2] * 180/M_PI);*/
+            
+            
+            angleSetpoint=0;
+            inputAngle=ypr[1] * 180/M_PI;
+            balanceBotPID.Compute();
+            if(outputPWM<0)
+            {
+              moveForward(outputPWM);
+            } 
+            else if(outputPWM>0)
+            {
+              moveBackward(outputPWM);
+            }
+            else
+            {
+               
+            }  
+            
+           
+        
 
-        #ifdef OUTPUT_READABLE_REALACCEL
-            // display real acceleration, adjusted to remove gravity
-            mpu.dmpGetQuaternion(&q, fifoBuffer);
-            mpu.dmpGetAccel(&aa, fifoBuffer);
-            mpu.dmpGetGravity(&gravity, &q);
-            mpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
-            Serial.print("areal\t");
-            Serial.print(aaReal.x);
-            Serial.print("\t");
-            Serial.print(aaReal.y);
-            Serial.print("\t");
-            Serial.println(aaReal.z);
-        #endif
-
-        #ifdef OUTPUT_READABLE_WORLDACCEL
-            // display initial world-frame acceleration, adjusted to remove gravity
-            // and rotated based on known orientation from quaternion
-            mpu.dmpGetQuaternion(&q, fifoBuffer);
-            mpu.dmpGetAccel(&aa, fifoBuffer);
-            mpu.dmpGetGravity(&gravity, &q);
-            mpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
-            mpu.dmpGetLinearAccelInWorld(&aaWorld, &aaReal, &q);
-            Serial.print("aworld\t");
-            Serial.print(aaWorld.x);
-            Serial.print("\t");
-            Serial.print(aaWorld.y);
-            Serial.print("\t");
-            Serial.println(aaWorld.z);
-        #endif
+       
     
-        #ifdef OUTPUT_TEAPOT
-            // display quaternion values in InvenSense Teapot demo format:
-            teapotPacket[2] = fifoBuffer[0];
-            teapotPacket[3] = fifoBuffer[1];
-            teapotPacket[4] = fifoBuffer[4];
-            teapotPacket[5] = fifoBuffer[5];
-            teapotPacket[6] = fifoBuffer[8];
-            teapotPacket[7] = fifoBuffer[9];
-            teapotPacket[8] = fifoBuffer[12];
-            teapotPacket[9] = fifoBuffer[13];
-            Serial.write(teapotPacket, 14);
-            teapotPacket[11]++; // packetCount, loops at 0xFF on purpose
-        #endif
+       
 
         // blink LED to indicate activity
         blinkState = !blinkState;
         digitalWrite(LED_PIN, blinkState);
     }
 }
+
+void moveForward(byte lOutputPWM)
+{
+  analogWrite(M1A, lOutputPWM);
+  analogWrite(M2A, lOutputPWM);
+  digitalWrite(M1B, 0);
+  digitalWrite(M2B, 0);
+  
+}  
+           
+void moveBackward(byte lOutputPWM)
+{
+  
+  digitalWrite(M1A, 0);
+  digitalWrite(M2A, 0);
+  analogWrite(M1B, lOutputPWM);
+  analogWrite(M2B, lOutputPWM);
+  
+}  
+
+void serialEvent() {
+  while (Serial.available()) {
+    // get the new byte:
+    char inChar = (char)Serial.read(); 
+    
+    if (inChar == '\n') {
+      //stringComplete = true;
+    } 
+  }
+} 
