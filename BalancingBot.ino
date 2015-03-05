@@ -207,6 +207,8 @@ void setup() {
     pinMode(LED_PIN, OUTPUT);
     balanceBotPID.SetOutputLimits(pwmMax,pwmMin);
     balanceBotPID.SetMode(AUTOMATIC);
+    balanceBotPID.SetSampleTime(10);
+       
 }
 
 
