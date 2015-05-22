@@ -65,9 +65,12 @@ MPU6050 mpu;
 
 //Define Variables we'll be connecting to
 double angleSetpoint=0, inputAngle, outputPWM;
-float Kp=0, Ki=0, Kd=0;
-byte pwmMax=255, pwmMin=-255;
-int M1A=3,M1B=5, M2A=6, M2B=7; 
+float Kp=10, Ki=0.1, Kd=0.1;
+float pwmVal;
+
+
+int M1A=4,M1B=5, M2A=6, M2B=7; 
+int speedPin=3;
 
 //Specify the links and initial tuning parameters
 PID balanceBotPID(&inputAngle, &outputPWM, &angleSetpoint,Kp,Ki,Kd, DIRECT);
@@ -139,6 +142,10 @@ void setup() {
     #elif I2CDEV_IMPLEMENTATION == I2CDEV_BUILTIN_FASTWIRE
         Fastwire::setup(400, true);
     #endif
+    pinMode(M1A, OUTPUT);
+    pinMode(M1B, OUTPUT);
+    pinMode(M2A, OUTPUT);
+    pinMode(M2A, OUTPUT);
 
     // initialize serial communication
     // (115200 chosen because it is required for Teapot Demo output, but it's
@@ -153,42 +160,38 @@ void setup() {
     // crystal solution for the UART timer.
 
     // initialize device
-    Serial.println(F("Initializing I2C devices..."));
+    //Serial.println(F("Initializing I2C devices..."));
     mpu.initialize();
 
     // verify connection
-    Serial.println(F("Testing device connections..."));
-    Serial.println(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
+    //Serial.println(F("Testing device connections..."));
+    //Serial.println(mpu.testConnection() ? F("MPU6050 connection successful") : F("MPU6050 connection failed"));
 
-    // wait for ready
-    Serial.println(F("\nSend any character to begin DMP programming and demo: "));
-    /*while (Serial.available() && Serial.read()); // empty buffer
-    while (!Serial.available());                 // wait for data
-    while (Serial.available() && Serial.read()); // empty buffer again*/
+    
 
     // load and configure the DMP
-    Serial.println(F("Initializing DMP..."));
+    //Serial.println(F("Initializing DMP..."));
     devStatus = mpu.dmpInitialize();
 
     // supply your own gyro offsets here, scaled for min sensitivity
-    mpu.setXGyroOffset(220);
-    mpu.setYGyroOffset(76);
+     mpu.setXGyroOffset(220);
+    mpu.setYGyroOffset(0);
     mpu.setZGyroOffset(-85);
     mpu.setZAccelOffset(1788); // 1688 factory default for my test chip
 
     // make sure it worked (returns 0 if so)
     if (devStatus == 0) {
         // turn on the DMP, now that it's ready
-        Serial.println(F("Enabling DMP..."));
+        //Serial.println(F("Enabling DMP..."));
         mpu.setDMPEnabled(true);
 
         // enable Arduino interrupt detection
-        Serial.println(F("Enabling interrupt detection (Arduino external interrupt 0)..."));
+        //Serial.println(F("Enabling interrupt detection (Arduino external interrupt 0)..."));
         attachInterrupt(0, dmpDataReady, RISING);
         mpuIntStatus = mpu.getIntStatus();
 
         // set our DMP Ready flag so the main loop() function knows it's okay to use it
-        Serial.println(F("DMP ready! Waiting for first interrupt..."));
+        //Serial.println(F("DMP ready! Waiting for first interrupt..."));
         dmpReady = true;
 
         // get expected DMP packet size for later comparison
@@ -198,14 +201,14 @@ void setup() {
         // 1 = initial memory load failed
         // 2 = DMP configuration updates failed
         // (if it's going to break, usually the code will be 1)
-        Serial.print(F("DMP Initialization failed (code "));
-        Serial.print(devStatus);
-        Serial.println(F(")"));
+        //Serial.print(F("DMP Initialization failed (code "));
+        //Serial.print(devStatus);
+        //Serial.println(F(")"));
     }
 
     // configure LED for output
     pinMode(LED_PIN, OUTPUT);
-    balanceBotPID.SetOutputLimits(pwmMax,pwmMin);
+    balanceBotPID.SetOutputLimits(-255,255);
     balanceBotPID.SetMode(AUTOMATIC);
     balanceBotPID.SetSampleTime(10);
        
@@ -246,7 +249,7 @@ void loop() {
     if ((mpuIntStatus & 0x10) || fifoCount == 1024) {
         // reset so we can continue cleanly
         mpu.resetFIFO();
-        Serial.println(F("FIFO overflow!"));
+        //Serial.println(F("FIFO overflow!"));
 
     // otherwise, check for DMP data ready interrupt (this should happen frequently)
     } else if (mpuIntStatus & 0x02) {
@@ -269,30 +272,43 @@ void loop() {
             mpu.dmpGetQuaternion(&q, fifoBuffer);
             mpu.dmpGetGravity(&gravity, &q);
             mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
-            /*Serial.print("ypr\t");
-            Serial.print(ypr[0] * 180/M_PI);
-            Serial.print("\t");
-            Serial.print(ypr[1] * 180/M_PI);
-            Serial.print("\t");
-            Serial.println(ypr[2] * 180/M_PI);*/
+            //Serial.print("ypr\t");
+            //Serial.print(ypr[0] * 180/M_PI);
+            //Serial.print("\t");
+            //Serial.print(ypr[1] * 180/M_PI);
+            //Serial.print("\t");
+            //Serial.print("Angle: ");
+            //Serial.print(ypr[2] * 180/M_PI);
+            
+
+            
+
             
             
-            angleSetpoint=0;
-            inputAngle=ypr[1] * 180/M_PI;
+            angleSetpoint=5;
+            inputAngle=ypr[2] * 180/M_PI;
             balanceBotPID.Compute();
-            if(outputPWM<0)
+           
+            //Serial.print("\toutputPWM: ");
+            //Serial.print(outputPWM);
+
+            if(outputPWM>0)
             {
-              moveForward(outputPWM);
+              moveForward();
+              setMotorSpeed(abs(outputPWM));
+             //Serial.print("\tMoving Forward");
             } 
-            else if(outputPWM>0)
+            else if(outputPWM<0)
             {
-              moveBackward(outputPWM);
+              moveBackward();
+              setMotorSpeed(abs(outputPWM));
+              //Serial.print("\tMoving Backward");
             }
             else
             {
-               
+               //Serial.println("else");
             }  
-            
+            //Serial.println("");
            
         
 
@@ -303,28 +319,38 @@ void loop() {
         // blink LED to indicate activity
         blinkState = !blinkState;
         digitalWrite(LED_PIN, blinkState);
+//        delay(10);
     }
 }
 
-void moveForward(byte lOutputPWM)
+void setMotorSpeed(byte speedPWM )
 {
-  analogWrite(M1A, lOutputPWM);
-  analogWrite(M2A, lOutputPWM);
+  analogWrite(speedPin, speedPWM);
+  
+}
+
+void moveBackward()
+{
+ // analogWrite(enable1, 0);
+  //analogWrite(enable2, 0);
+  digitalWrite(M1A, 1);
+  digitalWrite(M2A, 1);
   digitalWrite(M1B, 0);
   digitalWrite(M2B, 0);
   
+  
 }  
            
-void moveBackward(byte lOutputPWM)
+void moveForward()
 {
-  
+ // digitalWrite(enable1, 0);
+  //digitalWrite(enable2, 0);
   digitalWrite(M1A, 0);
   digitalWrite(M2A, 0);
-  analogWrite(M1B, lOutputPWM);
-  analogWrite(M2B, lOutputPWM);
+  digitalWrite(M1B, 1);
+  digitalWrite(M2B, 1);
   
-}  
-
+} 
 void serialEvent() {
   while (Serial.available()) {
     // get the new byte:
