@@ -64,9 +64,10 @@ MPU6050 mpu;
 //MPU6050 mpu(0x69); // <-- use for AD0 high
 
 //Define Variables we'll be connecting to
-double angleSetpoint=0, inputAngle, outputPWM;
-float Kp=10, Ki=0.1, Kd=0.1;
+double angleSetpoint=3.5, inputAngle, outputPWM;
+float Kp=19, Ki=0.1, Kd=0.15;
 float pwmVal;
+
 
 
 int M1A=4,M1B=5, M2A=6, M2B=7; 
@@ -174,8 +175,8 @@ void setup() {
     devStatus = mpu.dmpInitialize();
 
     // supply your own gyro offsets here, scaled for min sensitivity
-     mpu.setXGyroOffset(220);
-    mpu.setYGyroOffset(0);
+    mpu.setXGyroOffset(220);
+    mpu.setYGyroOffset(76);
     mpu.setZGyroOffset(-85);
     mpu.setZAccelOffset(1788); // 1688 factory default for my test chip
 
@@ -208,7 +209,7 @@ void setup() {
 
     // configure LED for output
     pinMode(LED_PIN, OUTPUT);
-    balanceBotPID.SetOutputLimits(-255,255);
+    balanceBotPID.SetOutputLimits(-125,125);
     balanceBotPID.SetMode(AUTOMATIC);
     balanceBotPID.SetSampleTime(10);
        
@@ -278,14 +279,16 @@ void loop() {
             //Serial.print(ypr[1] * 180/M_PI);
             //Serial.print("\t");
             //Serial.print("Angle: ");
-            //Serial.print(ypr[2] * 180/M_PI);
+            //Serial.print(inputAngle);
+            //Serial.print(",");
+            //Serial.println(ypr[2] * 180/M_PI);
             
 
             
 
             
             
-            angleSetpoint=5;
+            Serial.println(ypr[2] * 180/M_PI);
             inputAngle=ypr[2] * 180/M_PI;
             balanceBotPID.Compute();
            
@@ -295,20 +298,16 @@ void loop() {
             if(outputPWM>0)
             {
               moveForward();
-              setMotorSpeed(abs(outputPWM));
-             //Serial.print("\tMoving Forward");
+              setMotorSpeed((int)outputPWM);
+              //Serial.print("\tMoving Forward");
             } 
             else if(outputPWM<0)
             {
               moveBackward();
-              setMotorSpeed(abs(outputPWM));
+              setMotorSpeed((int)outputPWM*-1);
               //Serial.print("\tMoving Backward");
             }
-            else
-            {
-               //Serial.println("else");
-            }  
-            //Serial.println("");
+            
            
         
 
@@ -323,9 +322,13 @@ void loop() {
     }
 }
 
-void setMotorSpeed(byte speedPWM )
+void setMotorSpeed(int speedPWM )
 {
   analogWrite(speedPin, speedPWM);
+  Serial.print("***");
+  Serial.println(speedPWM);
+  
+  
   
 }
 
