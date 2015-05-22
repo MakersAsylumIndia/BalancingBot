@@ -65,7 +65,7 @@ MPU6050 mpu;
 
 //Define Variables we'll be connecting to
 double angleSetpoint=3.5, inputAngle, outputPWM;
-float Kp=19, Ki=0.1, Kd=0.15;
+float Kp=20, Ki=0.16, Kd=1;
 float pwmVal;
 
 
@@ -288,7 +288,7 @@ void loop() {
 
             
             
-            Serial.println(ypr[2] * 180/M_PI);
+            //Serial.println(ypr[2] * 180/M_PI);
             inputAngle=ypr[2] * 180/M_PI;
             balanceBotPID.Compute();
            
@@ -325,8 +325,8 @@ void loop() {
 void setMotorSpeed(int speedPWM )
 {
   analogWrite(speedPin, speedPWM);
-  Serial.print("***");
-  Serial.println(speedPWM);
+  //Serial.print("***");
+  //Serial.println(speedPWM);
   
   
   
