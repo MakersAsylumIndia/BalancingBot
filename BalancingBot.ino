@@ -64,7 +64,7 @@ MPU6050 mpu;
 //MPU6050 mpu(0x69); // <-- use for AD0 high
 
 //Define Variables we'll be connecting to
-double angleSetpoint=3.5, inputAngle, outputPWM;
+double angleSetpoint=0, inputAngle, outputPWM;
 float Kp=20, Ki=0.16, Kd=1;
 float pwmVal;
 
